@@ -1,118 +1,25 @@
-# t.hash(Insika::Profile.hash(example1).to_byte_s) == Digest::SHA1.hexdigest(Insika::Profile.hash(example1).to_byte_s)
-
-# Insika::Base32.encode(t.hash(Insika::Profile.hash(example1).to_byte_s).to_byte_s) == Insika::Base32.encode(Digest::SHA1.hexdigest(Insika::Profile.hash(example1).to_byte_s).to_byte_s)
-
-# Digest::SHA1.hexdigest Insika::Profile.transaction_items_tlv(example1).to_byte_s
-# Insika::Profile.transaction_items_hash(example1)
-# Insika::Base32.encode Insika::Profile.transaction_items_hash(example1).to_byte_s
-# => "5ef013f1a1f33b00fb18009bbc51638b364c6e28"
-
-# Insika::Profile.transaction_tlv(example1)
-example1 = {
-  :item_designation_print_length => 16,
-  :transaction => {
-            :timestamp => Time.now, #Time.parse("2010-02-28 23:59"),
-            :operator => "operator5",
-            :currency_code => 978,
-            :vat_not_included => false,
-            :training => false,
-            :containers => {
-                            :standard => { # sending: only D8 - DB tags [1] 2.6.20
-                                          :turnover => 44.91,
-                                          :negative_turnover => 4.99,
-                                          :vat_amount => 7.17,
-                                          :vat_rate => 19,
-                                          },
-                            :reduced1 => {
-                                          :turnover => 4.72,
-                                          :negative_turnover => 0,
-                                          :vat_amount => 0.31,
-                                          :vat_rate => 7,
-                                          },
-                            # thirdparty etc.
-#                             :third_party => {
-#                                             :turnover => 0.0,
-#                                             },
-#                             :delivery_note => {
-#                                             :turnover => 0.0,
-#                                               }
-                                 },
-                   },
-  :items => [
-              { :quantity => 0.08,
-                :unit => "kg",
-                :designation => "Japan Sencha",
-                :discount_surcharge => nil,
-                :voucher => nil,
-                :prices => {
-                            :standard => nil,
-                            :reduced1 => 4.72,
-                            :reduced2 => nil,
-                            :vat_free => nil,
-                            :special1 => nil,
-                            :special2 => nil,
-                            }
-              },
-              { :quantity => 1,
-                :unit => nil,
-                :designation => "Teekanne Gusseisen",
-                :discount_surcharge => nil,
-                :voucher => nil,
-                :prices => {
-                            :standard => 49.90,
-                            :reduced1 => nil,
-                            :reduced2 => nil,
-                            :vat_free => nil,
-                            :special1 => nil,
-                            :special2 => nil,
-                            }
-                },
-              { :quantity => 1,
-                :unit => nil,
-                :designation => "10% Rabatt", # mistakenly translated in [1]
-                :discount_surcharge => true,
-                :voucher => nil,
-                :prices => {
-                            :standard => -4.99,
-                            :reduced1 => nil,
-                            :reduced2 => nil,
-                            :vat_free => nil,
-                            :special1 => nil,
-                            :special2 => nil,
-                            }
-                },
-             ]
-  }
-
-# Digest::SHA1.hexdigest Insika::Profile.transaction_items_tlv(example2).to_byte_s
-# => "b45bfab30deebaba23b7f18d652d074f48f403a4"
-example2 = {
-  :item_designation_print_length => 16,
-  :items => [
-             { :quantity => 54.03,
-               :unit => "l",
-               :designation => "Diesel",
-               :discount_surcharge => nil,
-               :voucher => nil,
-               :prices => {
-                           :standard => 61.59,
-                           :reduced1 => nil,
-                           :reduced2 => nil,
-                           :vat_free => nil,
-                           :special1 => nil,
-                           :special2 => nil,
-                           }
-               },
-             ]
-  }
+# Copyright (C) 2015  Red (E) Tools Ltd. <office@thebigrede.net>
+# 
+# Permission is hereby granted, free of charge, to any person obtaining
+# a copy of this software and associated documentation files (the
+# "Software"), to deal in the  Software without restriction, including
+# without limitation the rights to use, copy, modify, merge, publish,
+# distribute, sublicense, and/or sell copies of the Software, and to
+# permit persons to whom the Software is furnished to do so, subject to
+# the following conditions:
+# 
+# The above copyright notice and this permission notice shall be included
+# in all copies or substantial portions of the Software.
+# 
+# THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND,
+# EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF
+# MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.
+# IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY
+# CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT,
+# TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE
+# SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 module Insika
-  
-  module SalorHospitality
-    def to_insika
-      puts "to insika #{ self.id }"
-    end
-  end
   
   module HexInteger
     def to_hex_s(words=nil)
@@ -141,7 +48,6 @@ module Insika
   end
   
   module HexString
-    
     def sbcd_hex_to_i
       sign = self[-1] == "c" ? 1 : -1
       self[0..-2].to_i * sign
@@ -181,7 +87,10 @@ module Insika
   
   
   module Base32
+    # Code thankfully taken and slightly adapted from
     # https://github.com/stesla/base32/blob/master/lib/base32.rb
+    #
+    # Verify at
     # http://www.simplycalc.com/base32-encode.php
     TABLE = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ234567'.freeze
     
@@ -242,6 +151,15 @@ module Insika
 
   
   module Profile
+    
+    CONTAINER_NAMES = [:standard,
+                       :reduced1,
+                       :reduced2,
+                       :vat_free,
+                       :special1,
+                       :special2,
+                       :third_party,
+                       :delivery_note]
 
     def self.transaction_tlv(data, verify=false)
       tdata = data[:transaction]
@@ -288,8 +206,7 @@ module Insika
       end
       
       # containers
-      container_names = [:standard, :reduced1, :reduced2, :vat_free, :special1, :special2, :third_party, :delivery_note]
-      container_names.each_with_index do |cname, idx|
+      CONTAINER_NAMES.each_with_index do |cname, idx|
         next unless tdata[:containers].has_key? cname
         
         container_tlv = ""
@@ -412,7 +329,6 @@ module Insika
     # @param le [String] Expected response length. Two-byte human-readable hex string.
     # @return [String] A byte string
     def self.compose_command(cla, ins, p1, p2, data, le)
-      puts "#{ [cla, ins, p1, p2, data, le] }"
       str = ""
       str += cla
       str += ins
@@ -453,23 +369,14 @@ module Insika
     end
     
   end
-  #Insika::Profile.blah
-
   
   class Tim
-
-    def initialize
-      #p = Insika::Profile.new
-      #Insika::Profile.blah = 3 #instance_methods
-      
-      #Insika::Profile.hash(items)
-    end
-    
     def open
-      Insika.log "Opening card"
+      Insika.log "Opening card..."
       @context = Smartcard::PCSC::Context.new
       readers = @context.readers
       @reader = readers.first
+      Insika.log "Reader is #{ @reader }"
       @card = Smartcard::PCSC::Card.new @context, @reader
     end
     
@@ -484,6 +391,7 @@ module Insika
       cmd = Util.compose_command("00", "a4", "04", "0c", aid, nil)
       resp = transmit(cmd)
       stat = parse_status(resp[-2..-1])
+      return stat, nil
     end
     
     def read_certificate
@@ -499,24 +407,28 @@ module Insika
       cert = ""
       cert_length = 0
       0.upto(6) do |i|
-        Insika.log "CERT LOOP #{ i }"
+        # Insika.log "CERT LOOP #{ i }"
         offset = (i * chunk_size).to_hex_s(4)
         p1 = offset[0..1]
         p2 = offset[2..3]
         cmd = Util.compose_command("00", "b0", p1, p2, nil, chunk_size_hex)
         resp = transmit(cmd)
         stat = parse_status(resp[-2..-1])
+        raise "SELECT FILE command not successful" unless stat == "NO_ERROR"
         if i == 0
           cert_length = 4 + resp[2..3].gsub(" ", "").to_hex_s.to_i_from_hex
-          Insika.log "CERT LENGTH IS #{ resp[2..3].inspect } #{ cert_length }"
+          # Insika.log "CERT LENGTH IS #{ resp[2..3].inspect } #{ cert_length }"
         end
         cert += resp[0..-3]
       end
       cert = cert[0..cert_length - 1]
-      Insika.log "CERTIFICATE IS #{ cert.to_hex_s }"
-      #openssl x509 -text -noout -inform DER -in cert.der
-      File.open("cert.der", 'wb') { |f| f.write(cert) }
-      Base64.encode64(cert)
+      
+      # How to write a .der binary encoded certificate
+      # File.open("cert.der", 'wb') { |f| f.write(cert) }
+      # This .der certificate can be inspected with the following command
+      # openssl x509 -text -noout -inform DER -in cert.der
+      
+      return stat, Base64.encode64(cert)
     end
     
     def get_data_tim_status
@@ -524,7 +436,7 @@ module Insika
       resp = transmit(cmd)
       stat = parse_status(resp[-2..-1])
       result = parse_tlv(resp[0..-3])
-      Insika.log("TIM status result: #{ result }")
+      return stat, result
     end
     
     def get_data_tim_status_extended
@@ -532,7 +444,7 @@ module Insika
       resp = transmit(cmd)
       stat = parse_status(resp[-2..-1])
       result = parse_tlv(resp[0..-3])
-      Insika.log("TIM status extended result: #{ result }")
+      return stat, result
     end
     
     def get_data_booked_months
@@ -540,7 +452,7 @@ module Insika
       resp = transmit(cmd)
       stat = parse_status(resp[-2..-1])
       result = parse_tlv(resp[0..-3])
-      Insika.log("TIM booked months result: #{ result }")
+      return stat, result
     end
     
     def hash(byte_str)
@@ -548,8 +460,7 @@ module Insika
       cmd = Util.compose_command("00", "2A", "90", "80", data, "00")
       resp = transmit(cmd)
       stat = parse_status(resp[-2..-1])
-      #Insika.log("Hash result: #{ resp[0..-3].to_hex_s }")
-      return resp[0..-3].to_hex_s
+      return stat, resp[0..-3].to_hex_s
     end
     
     def transact(data)
@@ -558,8 +469,7 @@ module Insika
       resp = transmit(cmd)
       stat = parse_status(resp[-2..-1])
       result = parse_tlv(resp[0..-3])
-      Insika.log("transact result: #{ result }")
-      return result
+      return stat, result
     end
     
     def verify_signature(data, sequence, signature)
@@ -572,8 +482,7 @@ module Insika
       resp = transmit(cmd)
       stat = parse_status(resp[-2..-1])
       result = parse_tlv(resp[0..-3])
-      Insika.log("transact verify result: #{ result }")
-      return result
+      return stat, result
     end
     
     def report_unsigned
@@ -589,8 +498,7 @@ module Insika
       resp = transmit(cmd)
       stat = parse_status(resp[-2..-1])
       result = parse_tlv(resp[0..-3])
-      Insika.log("report unsigned result: #{ result }")
-      return result
+      return stat, result
     end
     
     def report_signed(hash)
@@ -610,8 +518,7 @@ module Insika
       resp = transmit(cmd)
       stat = parse_status(resp[-2..-1])
       result = parse_tlv(resp[0..-3])
-      Insika.log("report signed result: #{ result }")
-      return result
+      return stat, result
     end
     
     def report_span(from, to)
@@ -633,8 +540,7 @@ module Insika
       resp = transmit(cmd)
       stat = parse_status(resp[-2..-1])
       result = parse_tlv(resp[0..-3])
-      Insika.log("report span result: #{ result }")
-      return result
+      return stat, result
     end
     
     def activate(pin)
@@ -657,13 +563,8 @@ module Insika
       stat = parse_status(resp[-2..-1])
       
       result = parse_tlv(resp[0..-3])
-      Insika.log("TIM status extended result: #{ result }")
       
-      return resp[0..-3].to_hex_s
-    end
-    
-    def myparsetlv(data)
-      parse_tlv(data)
+      return stat, resp[0..-3].to_hex_s
     end
     
     def deactivate
@@ -708,42 +609,43 @@ module Insika
         case tag
           
         when "9e"
-          tag_plain = "SIGNATURE" # [1] 2.6.1
+          tag_plain = :signature # [1] 2.6.1
           val_plain = Base32.encode(val.to_byte_s).gsub(/(....)/) { |m| "#{ m }-" }
           
         when "c0"
-          tag_plain = "TIM_LIFECYCLE" # [1] 2.6.2
+          tag_plain = :lifecycle # [1] 2.6.2
           case val
-          when "00" then val_plain = "UNDEFINED"
-          when "01" then val_plain = "INITIALIZED"
-          when "02" then val_plain = "PERSONALIZED"
-          when "03" then val_plain = "ACTIVATED"
-          when "04" then val_plain = "DEACTIVATED"
-          else val_plain = "UNKNOWN_VAL_#{ val }_FOR_TAG_#{ tag }"
+          when "00" then val_plain = :undefined
+          when "01" then val_plain = :initialized
+          when "02" then val_plain = :personalized
+          when "03" then val_plain = :activated
+          when "04" then val_plain = :deactivated
+          else
+            raise "Unknown value #{ val } for tag #{ tag }"
           end
           
         when "c1"
-          tag_plain = "TIM_SERIAL_NUMBER" # [1] 2.6.3
-          val_plain = val.to_i_from_hex
+          tag_plain = :serial_number # [1] 2.6.3
+          val_plain = val
           
         when "c2"
-          tag_plain = "TIM_VERSION" # [1] 2.6.4
+          tag_plain = :version # [1] 2.6.4
           val_plain = val.to_byte_s
           
         when "c4"
-          tag_plain = "TAX_PAYER_ID" # [1] 2.6.6
+          tag_plain = :tax_payer_id # [1] 2.6.6
           val_plain = val.to_byte_s
           
         when "c5"
-          tag_plain = "TIM_CONSECUTIVE_NUMBER" # [1] 2.6.7
+          tag_plain = :consecutive_number # [1] 2.6.7
           val_plain = val.to_i_from_hex
           
         when "c8"
-          tag_plain = "CURRENCY_CODE" # [1] 2.6.11
+          tag_plain = :currency_code # [1] 2.6.11
           val_plain = val.to_i_from_hex
           
         when "cd"
-          tag_plain = "DATE_LAST_TRANSACTION_MONTH" # [1] 2.6.14
+          tag_plain = :date # [1] 2.6.14
           if len == 3
             val_plain = val[0..3] + "-" + val[4..5]
           else
@@ -751,23 +653,23 @@ module Insika
           end
           
         when "cb"
-          tag_plain = "SEQUENCE_TRANSACTIONS" # [1] 2.6.13
+          tag_plain = :sequence_transactions # [1] 2.6.13
           val_plain = val.to_i_from_hex
           
         when "cc"
-          tag_plain = "SEQUENCE_REPORTS" # [1] 2.6.13
+          tag_plain = :sequence_reports # [1] 2.6.13
           val_plain = val.to_i_from_hex
           
         when "cf"
-          tag_plain = "MONTHS_WITH_TURNOVER" # [1] 2.3.2
-          val_plain = val.to_i_from_hex
+          tag_plain = :months_with_turnover # [1] 2.3.2
+          val_plain = val.group_hex.split(" ").collect{|str| str.to_i }
           
         when "d2"
-          tag_plain = "SEQ_NO_TRANSACTION_FIRST" # [1] 2.6.13
+          tag_plain = :sequence_transaction_first # [1] 2.6.13
           val_plain = val.to_i_from_hex
           
         when "d3"
-          tag_plain = "SEQ_NO_TRANSACTION_LAST" # [1] 2.6.13
+          tag_plain = :sequence_transaction_last # [1] 2.6.13
           val_plain = val.to_i_from_hex
           
         when "d8"
@@ -787,20 +689,29 @@ module Insika
           val_plain = val.ubcd_hex_to_i / 100.0
           
         when /e[1-9]/
-          tag_plain = "container#{ tag[1] }".to_sym
+          container_number = tag[1].to_i
+          tag_plain = Profile::CONTAINER_NAMES[container_number - 1]
           val_plain = parse_tlv(val.to_byte_s)
-          
+          unless result.has_key? :containers
+            result[:containers] = {}
+          end
+          result[:containers][tag_plain] = val_plain
+
         else
           tag_plain = tag
           val_plain = val
         end
-        result[tag_plain] = val_plain
+            
+        unless tag[0] == "e"
+          # containers will be added to result in above when statement, due to nesting
+          result[tag_plain] = val_plain
+        end
         
       end
       return result
     end
     
-    # http://www.cardwerk.com/smartcards/smartcard_standard_ISO7816-4_5_basic_organizations.aspx
+    # for more information on response codes see  http://www.cardwerk.com/smartcards/smartcard_standard_ISO7816-4_5_basic_organizations.aspx
     def parse_status(status)
       status = status.to_hex_s
       
